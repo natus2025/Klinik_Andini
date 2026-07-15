@@ -148,7 +148,7 @@ th { background:#00A651; color:white; }
 <!-- TAB KEUANGAN (TAB 3) -->
 <div id="keuangan" class="tab-content" style="display:none">
   <h3>Input Pemasukan / Pengeluaran</h3>
-  <div class="form">
+  <div class="form" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
     <div><label class="small-text">Tanggal</label><input type="date" id="tgl" style="width:100%; box-sizing:border-box;"></div>
     <div><label class="small-text">Jenis</label><select id="jenis" style="width:100%"><option value="in">Pemasukan</option><option value="out">Pengeluaran</option></select></div>
     <div>
@@ -159,6 +159,7 @@ th { background:#00A651; color:white; }
     </div>
     <div><label class="small-text">Keterangan / Penjelasan</label><input type="text" id="ket" placeholder="Beli Reagen / Operasional" style="width:100%; box-sizing:border-box;"></div>
     <div><label class="small-text">Jumlah (Rp)</label><input type="number" id="jumlah" placeholder="Jumlah Rp" style="width:100%; box-sizing:border-box;"></div>
+    <div><label class="small-text">Bukti Transaksi (JPG/PDF)</label><input type="file" id="buktiKeuangan" accept="image/jpeg,image/png,application/pdf" style="width:100%; box-sizing:border-box;"></div>
     <button onclick="addKeuangan()">+ Simpan</button>
   </div>
   <table>
@@ -169,6 +170,7 @@ th { background:#00A651; color:white; }
         <th>Nama Project</th>
         <th>Keterangan / Penjelasan</th>
         <th>Jumlah</th>
+        <th>Bukti</th>
         <th>Aksi</th>
       </tr>
     </thead>
@@ -194,6 +196,7 @@ th { background:#00A651; color:white; }
 
 </div>
 <script>
+// GANTI DENGAN URL APLIKASI WEB ANDA DARI GOOGLE APPS SCRIPT
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz1xivIgwLa7sVbG4BK6Rs5nIVvCT-734-0cQXoruzEOq8mr2M0jETpolhmFKQ6GX3d/exec";
 
 let keuangan = [];
@@ -255,22 +258,43 @@ function populateMcuDropdowns() {
 }
 
 function addKeuangan() {
+  let fileInput = document.getElementById('buktiKeuangan');
+  let file = fileInput.files[0];
+  
   let data = { 
     tgl: document.getElementById('tgl').value, 
     jenis: document.getElementById('jenis').value, 
     project: document.getElementById('projectKeuangan').value || '-',
     ket: document.getElementById('ket').value, 
     jumlah: parseInt(document.getElementById('jumlah').value) || 0,
-    isAuto: false 
+    isAuto: false,
+    bukti: ""
   };
-  keuangan.push(data); 
-  saveAndSync(); 
-  render();
 
+  if (file) {
+    let reader = new FileReader();
+    reader.onload = function(e) {
+      data.bukti = e.target.result; // Konversi bukti menjadi base64 string
+      keuangan.push(data); 
+      saveAndSync(); 
+      render();
+      resetFormKeuangan();
+    }
+    reader.readAsDataURL(file);
+  } else {
+    keuangan.push(data); 
+    saveAndSync(); 
+    render();
+    resetFormKeuangan();
+  }
+}
+
+function resetFormKeuangan() {
   document.getElementById('tgl').value = '';
   document.getElementById('projectKeuangan').value = '';
   document.getElementById('ket').value = '';
   document.getElementById('jumlah').value = '';
+  document.getElementById('buktiKeuangan').value = '';
 }
 
 function addMCU() {
@@ -415,7 +439,8 @@ function updateStatus(index, value) {
         ket: `Pelunasan Corporate: ${currentTagihan.nama} (Inv: ${currentTagihan.noInvoice || '-'})`,
         jumlah: currentTagihan.totalHarga,
         isAuto: true, 
-        refId: currentTagihan.id
+        refId: currentTagihan.id,
+        bukti: ""
       });
     }
   } else {
@@ -498,11 +523,16 @@ function renderPengeluaranProject() {
 }
 
 function render(){
-  // Render Keuangan
+  // Render Keuangan (Diperbarui dengan kolom bukti transaksi)
   let listK = document.getElementById('listKeuangan'); listK.innerHTML=''; let totalIn=0, totalOut=0;
   keuangan.forEach((e,i)=>{ 
     let badgeStyle = e.isAuto ? 'background:#E8F5E9; color:#007a3d; padding:2px 6px; border-radius:4px; font-size:11px;' : '';
     let autoLabel = e.isAuto ? `<br><span style="${badgeStyle}">Otomatis Penagihan</span>` : '';
+    
+    let buktiHTML = "-";
+    if(e.bukti) {
+      buktiHTML = `<a href="${e.bukti}" target="_blank" class="btn-view">Lihat Bukti</a>`;
+    }
     
     listK.innerHTML += `<tr>
       <td>${e.tgl}</td>
@@ -510,19 +540,19 @@ function render(){
       <td>${e.project || '-'}</td>
       <td>${e.ket}${autoLabel}</td>
       <td>Rp ${(e.jumlah || 0).toLocaleString()}</td>
+      <td>${buktiHTML}</td>
       <td><button class="btn-del" onclick="del(${i},'k')">Hapus</button></td>
     </tr>`;
     if(e.jenis=='in') totalIn+=e.jumlah; else totalOut+=e.jumlah;
   });
   
-  // Render Data MCU (Tabel Terupdate dengan kolom Keterangan & tombol Edit Total)
+  // Render Data MCU
   let listM = document.getElementById('listMCU'); listM.innerHTML='';
   mcu.forEach((e,i)=>{ 
     let itemsString = e.items && e.items.length > 0 ? e.items.join(', ') : '-';
     let hargaPerPasien = e.harga || 0;
     let jmlPasien = e.jumlah || 0;
     
-    // Gunakan total kustom jika telah di-edit, atau perkalian default bawaan
     let totalHarga = e.customTotal !== undefined ? e.customTotal : (hargaPerPasien * jmlPasien);
     let labelEdited = e.customTotal !== undefined ? ' <span style="font-size:10px; color:orange; font-weight:normal;">(Disesuaikan)</span>' : '';
     
