@@ -250,15 +250,15 @@ async function loadDataFromSpreadsheet() {
       mcu = result.mcu || [];
       tagihan = result.tagihan || [];
       
-      localStorage.setItem('klinik_keuangan', JSON.stringify(keuangan));
-      localStorage.setItem('klinik_mcu', JSON.stringify(mcu));
-      localStorage.setItem('klinik_tagihan', JSON.stringify(tagihan));
+      localStorage.setItem('andini_keuangan', JSON.stringify(keuangan));
+      localStorage.setItem('andini_mcu', JSON.stringify(mcu));
+      localStorage.setItem('andini_tagihan', JSON.stringify(tagihan));
     }
   } catch (error) {
     console.error("Gagal memuat data dari awan, beralih ke penyimpanan lokal:", error);
-    keuangan = JSON.parse(localStorage.getItem('klinik_keuangan')) || [];
-    mcu = JSON.parse(localStorage.getItem('klinik_mcu')) || [];
-    tagihan = JSON.parse(localStorage.getItem('klinik_tagihan')) || [];
+    keuangan = JSON.parse(localStorage.getItem('andini_keuangan')) || [];
+    mcu = JSON.parse(localStorage.getItem('andini_mcu')) || [];
+    tagihan = JSON.parse(localStorage.getItem('andini_tagihan')) || [];
   } finally {
     populateMcuDropdowns();
     render();
@@ -618,9 +618,9 @@ function del(i, tipe){
 }
 
 function saveAndSync(){
-  localStorage.setItem('klinik_keuangan', JSON.stringify(keuangan));
-  localStorage.setItem('klinik_mcu', JSON.stringify(mcu));
-  localStorage.setItem('klinik_tagihan', JSON.stringify(tagihan));
+  localStorage.setItem('andini_keuangan', JSON.stringify(keuangan));
+  localStorage.setItem('andini_mcu', JSON.stringify(mcu));
+  localStorage.setItem('andini_tagihan', JSON.stringify(tagihan));
   
   fetch(SCRIPT_URL, {
     method: 'POST',
