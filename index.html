@@ -32,6 +32,10 @@ th { background:#00A651; color:white; }
 .btn-view:hover { background: #0b7dda; }
 .btn-del { background: #f44336; padding: 6px 10px; }
 .btn-del:hover { background: #da190b; }
+.btn-edit { background: #FF9800; padding: 6px 10px; margin-right: 2px; }
+.btn-edit:hover { background: #e68a00; }
+.btn-ket { background: #757575; padding: 4px 8px; font-size: 11px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+.btn-ket:hover { background: #616161; }
 .select-status { padding: 4px; border-radius: 4px; font-weight: bold; }
 </style>
 </head>
@@ -91,6 +95,7 @@ th { background:#00A651; color:white; }
         <th>Harga/Pasien</th>
         <th>Jumlah Pasien</th>
         <th>Total Harga</th>
+        <th>Keterangan</th>
         <th>Aksi</th>
       </tr>
     </thead>
@@ -145,7 +150,7 @@ th { background:#00A651; color:white; }
   <h3>Input Pemasukan / Pengeluaran</h3>
   <div class="form">
     <div><label class="small-text">Tanggal</label><input type="date" id="tgl" style="width:100%; box-sizing:border-box;"></div>
-    <div><label class="small-text">Jenis</label><select id="jenis" style="width:100%;"><option value="in">Pemasukan</option><option value="out">Pengeluaran</option></select></div>
+    <div><label class="small-text">Jenis</label><select id="jenis" style="width:100%"><option value="in">Pemasukan</option><option value="out">Pengeluaran</option></select></div>
     <div>
       <label class="small-text">Nama Project</label>
       <select id="projectKeuangan" style="width:100%;">
@@ -189,17 +194,14 @@ th { background:#00A651; color:white; }
 
 </div>
 <script>
-// GANTI DENGAN URL APLIKASI WEB ANDA DARI GOOGLE APPS SCRIPT
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz1xivIgwLa7sVbG4BK6Rs5nIVvCT-734-0cQXoruzEOq8mr2M0jETpolhmFKQ6GX3d/exec";
 
 let keuangan = [];
 let mcu = [];
 let tagihan = [];
 
-// Fungsi untuk mengambil data dari Google Sheet saat aplikasi dibuka
 async function loadDataFromSpreadsheet() {
   try {
-    // Tampilkan indikator loading sederhana pada summary card jika diperlukan
     document.getElementById('totalIn').innerText = 'Loading...';
     
     let response = await fetch(SCRIPT_URL);
@@ -210,14 +212,12 @@ async function loadDataFromSpreadsheet() {
       mcu = result.mcu || [];
       tagihan = result.tagihan || [];
       
-      // Simpan cadangan di localstorage
       localStorage.setItem('klinik_keuangan', JSON.stringify(keuangan));
       localStorage.setItem('klinik_mcu', JSON.stringify(mcu));
       localStorage.setItem('klinik_tagihan', JSON.stringify(tagihan));
     }
   } catch (error) {
     console.error("Gagal memuat data dari awan, beralih ke penyimpanan lokal:", error);
-    // Jika internet offline, gunakan data localstorage lama
     keuangan = JSON.parse(localStorage.getItem('klinik_keuangan')) || [];
     mcu = JSON.parse(localStorage.getItem('klinik_mcu')) || [];
     tagihan = JSON.parse(localStorage.getItem('klinik_tagihan')) || [];
@@ -246,7 +246,7 @@ function populateMcuDropdowns() {
   
   let optionsHTML = '<option value="">-- Pilih Client MCU --</option>';
   mcu.forEach((e, i) => {
-    let total = (e.harga || 0) * (e.jumlah || 0);
+    let total = e.customTotal !== undefined ? e.customTotal : ((e.harga || 0) * (e.jumlah || 0));
     optionsHTML += `<option value="${e.perusahaan} (${e.lokasi || '-'})">${e.perusahaan} (${e.lokasi || '-'}) - Rp ${total.toLocaleString()}</option>`;
   });
   
@@ -288,7 +288,9 @@ function addMCU() {
     tgl: document.getElementById('tglMCU').value, 
     items: checkedItems,
     harga: harga,
-    jumlah: jumlahPasien
+    jumlah: jumlahPasien,
+    customTotal: undefined,
+    keterangan: ""
   };
   
   mcu.push(data); 
@@ -302,6 +304,46 @@ function addMCU() {
   document.getElementById('hargaProject').value = '';
   document.getElementById('jmlPasien').value = '';
   document.querySelectorAll('#itemPemeriksaan input').forEach(cb => cb.checked = false);
+}
+
+function editTotalMcu(index) {
+  let currentMcu = mcu[index];
+  let currentTotal = currentMcu.customTotal !== undefined ? currentMcu.customTotal : (currentMcu.harga * currentMcu.jumlah);
+  
+  let newTotal = prompt(`Masukkan Penyesuaian Total Harga untuk ${currentMcu.perusahaan}:`, currentTotal);
+  if (newTotal !== null) {
+    let parsedTotal = parseInt(newTotal) || 0;
+    mcu[index].customTotal = parsedTotal;
+    
+    let identifier = `${currentMcu.perusahaan} (${currentMcu.lokasi || '-'})`;
+    tagihan.forEach((t) => {
+      if (`${t.nama} (${t.lokasi || '-'})` === identifier) {
+        t.totalHarga = parsedTotal;
+        if (t.status === 'Lunas') {
+          keuangan.forEach((k) => {
+            if (k.isAuto === true && k.refId === t.id) {
+              k.jumlah = parsedTotal;
+            }
+          });
+        }
+      }
+    });
+
+    saveAndSync();
+    populateMcuDropdowns();
+    render();
+  }
+}
+
+function updateKeteranganMcu(index) {
+  let currentMcu = mcu[index];
+  let oldKet = currentMcu.keterangan || "";
+  let newKet = prompt(`Masukkan Keterangan / Catatan Project untuk ${currentMcu.perusahaan}:`, oldKet);
+  if (newKet !== null) {
+    mcu[index].keterangan = newKet;
+    saveAndSync();
+    render();
+  }
 }
 
 function addTagihan() {
@@ -318,11 +360,13 @@ function addTagihan() {
   let file = fileInput.files[0];
   
   let idTagihan = 'inv_' + Date.now(); 
+  let calculatedTotal = selectedMcu.customTotal !== undefined ? selectedMcu.customTotal : ((selectedMcu.harga || 0) * (selectedMcu.jumlah || 0));
+  
   let data = {
     id: idTagihan,
     nama: selectedMcu.perusahaan,
     lokasi: selectedMcu.lokasi || '-',
-    totalHarga: (selectedMcu.harga || 0) * (selectedMcu.jumlah || 0),
+    totalHarga: calculatedTotal,
     noInvoice: document.getElementById('noInvoice').value,
     tglKirim: document.getElementById('tglKirimInvoice').value,
     durasi: parseInt(document.getElementById('durasiInvoice').value),
@@ -333,7 +377,7 @@ function addTagihan() {
   if (file) {
     let reader = new FileReader();
     reader.onload = function(e) {
-      data.lampiran = e.target.result; // Lampiran tersimpan sebagai string Base64 aman di ekosistem Sheet JSON
+      data.lampiran = e.target.result; 
       tagihan.push(data);
       saveAndSync();
       render();
@@ -409,16 +453,14 @@ function del(i, tipe){
   render(); 
 }
 
-// Fungsi gabungan: Simpan ke Lokal dan Kirim Sinkronisasi ke Google Sheet secara Real-time
 function saveAndSync(){
   localStorage.setItem('klinik_keuangan', JSON.stringify(keuangan));
   localStorage.setItem('klinik_mcu', JSON.stringify(mcu));
   localStorage.setItem('klinik_tagihan', JSON.stringify(tagihan));
   
-  // Kirim data ke Cloud Google Sheet
   fetch(SCRIPT_URL, {
     method: 'POST',
-    mode: 'no-cors', // Menghindari isu blokir CORS browser di GitHub Pages
+    mode: 'no-cors', 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       action: "saveAll",
@@ -473,13 +515,19 @@ function render(){
     if(e.jenis=='in') totalIn+=e.jumlah; else totalOut+=e.jumlah;
   });
   
-  // Render MCU
+  // Render Data MCU (Tabel Terupdate dengan kolom Keterangan & tombol Edit Total)
   let listM = document.getElementById('listMCU'); listM.innerHTML='';
   mcu.forEach((e,i)=>{ 
     let itemsString = e.items && e.items.length > 0 ? e.items.join(', ') : '-';
     let hargaPerPasien = e.harga || 0;
     let jmlPasien = e.jumlah || 0;
-    let totalHarga = hargaPerPasien * jmlPasien;
+    
+    // Gunakan total kustom jika telah di-edit, atau perkalian default bawaan
+    let totalHarga = e.customTotal !== undefined ? e.customTotal : (hargaPerPasien * jmlPasien);
+    let labelEdited = e.customTotal !== undefined ? ' <span style="font-size:10px; color:orange; font-weight:normal;">(Disesuaikan)</span>' : '';
+    
+    let isiKet = e.keterangan ? e.keterangan : '<span style="color:#aaa; font-style:italic;">Tidak ada keterangan</span>';
+    let textTombolKet = e.keterangan ? 'Ubah Ket.' : '+ Tambahkan Keterangan';
 
     listM.innerHTML += `<tr>
       <td>${e.perusahaan}</td>
@@ -488,8 +536,15 @@ function render(){
       <td>${itemsString}</td>
       <td>Rp ${hargaPerPasien.toLocaleString()}</td>
       <td>${jmlPasien}</td>
-      <td><strong>Rp ${totalHarga.toLocaleString()}</strong></td>
-      <td><button class="btn-del" onclick="del(${i},'m')">Hapus</button></td>
+      <td><strong>Rp ${totalHarga.toLocaleString()}</strong>${labelEdited}</td>
+      <td>
+         <div>${isiKet}</div>
+         <button class="btn-ket" onclick="updateKeteranganMcu(${i})">${textTombolKet}</button>
+      </td>
+      <td>
+        <button class="btn-edit" onclick="editTotalMcu(${i})">Edit Total</button>
+        <button class="btn-del" onclick="del(${i},'m')">Hapus</button>
+      </td>
     </tr>`;
   });
 
@@ -503,7 +558,6 @@ function render(){
       let yyyy = tglKirimDate.getFullYear();
       let mm = String(tglKirimDate.getMonth() + 1).padStart(2, '0');
       let dd = String(tglKirimDate.getDate()).padStart(2, '0');
-      let tglJatuhTempoStrRaw = `${yyyy}-${mm}-${dd}`;
       tglJatuhTempoStr = `${dd}-${mm}-${yyyy}`;
     }
 
@@ -541,7 +595,6 @@ function render(){
   document.getElementById('totalPiutang').innerText = 'Rp ' + totalPiutang.toLocaleString();
 }
 
-// Menjalankan inisialisasi awal dengan memanggil data dari Google Sheet
 loadDataFromSpreadsheet();
 </script>
 </body>
