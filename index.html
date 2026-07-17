@@ -2775,7 +2775,7 @@ function render() {
       <tr>
 
         <td>
-          ${e.tgl || '-'}
+          ${formatTanggalIndo(e.tgl)}
         </td>
 
         <td>
@@ -2908,7 +2908,7 @@ function render() {
         </td>
 
         <td>
-          ${e.tgl || '-'}
+          ${formatTanggalIndo(e.tgl)}
         </td>
 
         <td>
@@ -3247,7 +3247,7 @@ function render() {
 
         <td>
 
-          ${e.tglKirim || '-'}
+          ${formatTanggalIndo(e.tglKirim)}
 
           <br>
 
@@ -3374,6 +3374,20 @@ function render() {
 
 }
 
+function formatTanggalIndo(tgl) {
+  if (!tgl) return "-";
+  let d = new Date(tgl);
+  
+  // Cek apakah tanggal valid
+  if (isNaN(d.getTime())) return tgl; 
+  
+  // Membentuk format dd-MM-yyyy secara manual
+  let day = String(d.getDate()).padStart(2, '0');
+  let month = String(d.getMonth() + 1).padStart(2, '0');
+  let year = d.getFullYear();
+  
+  return `${day}-${month}-${year}`;
+}
 
 /* ===============================
    MULAI APLIKASI
