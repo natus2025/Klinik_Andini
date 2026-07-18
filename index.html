@@ -3,7 +3,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Tracking Klinik Andini</title>
+<title>Sistem Tracking Keuangan & Penagihan</title>
 
 <style>
 body {
@@ -389,7 +389,15 @@ th {
 
 <div class="container">
 
-<div class="logo">KLINIK PRATAMA ANDINI</div>
+<div class="logo" id="logoNama">KLINIK PRATAMA ANDINI</div>
+
+<div style="text-align:center;margin-bottom:15px;">
+  <label class="small-text" style="display:inline-block;margin-right:8px;">🏢 Pilih Database:</label>
+  <select id="dbSwitcher" onchange="switchDatabase(this.value)" style="padding:9px 14px;border-radius:8px;border:1px solid #ccc;font-weight:bold;font-size:14px;">
+    <option value="andini">Klinik Pratama Andini</option>
+    <option value="nvm">PT. Natus Vincere Medika</option>
+  </select>
+</div>
 
 <h1>📊 Sistem Tracking Keuangan & Penagihan</h1>
 
@@ -834,7 +842,16 @@ Clear Filter
 <script>
 
 const SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbwB106_Z8YoDET4D8riN9YAbBO7xqlsiBMIN5VXaZSs4-roU36texVbEqdS_NvCa1Tw/exec";
+"https://script.google.com/macros/s/AKfycbw_a68JkaPNXt5JDw-FZcV_HfWR6mOunvn2nenfsN3a7jGDU42Yl1TcpNsPxk_9xSelxA/exec";
+
+const DB_LABELS = {
+  andini: "KLINIK PRATAMA ANDINI",
+  nvm: "PT. NATUS VINCERE MEDIKA"
+};
+
+// INITIAL DB SETTING PLACEHOLDER
+let currentDb = 'andini';
+localStorage.setItem('activeDb', 'andini');
 
 let keuangan = [];
 let mcu = [];
@@ -874,7 +891,9 @@ async function loadDataFromSpreadsheet() {
 
     document.getElementById('totalIn').innerText = 'Loading...';
 
-    let response = await fetch(SCRIPT_URL);
+    let response = await fetch(
+      `${SCRIPT_URL}?action=getData&db=${currentDb}`
+    );
 
     let result = await response.json();
 
@@ -884,9 +903,9 @@ async function loadDataFromSpreadsheet() {
       mcu = result.mcu || [];
       tagihan = result.tagihan || [];
 
-      localStorage.setItem('andini_keuangan', JSON.stringify(keuangan));
-      localStorage.setItem('andini_mcu', JSON.stringify(mcu));
-      localStorage.setItem('andini_tagihan', JSON.stringify(tagihan));
+      localStorage.setItem(`${currentDb}_keuangan`, JSON.stringify(keuangan));
+      localStorage.setItem(`${currentDb}_mcu`, JSON.stringify(mcu));
+      localStorage.setItem(`${currentDb}_tagihan`, JSON.stringify(tagihan));
 
     }
 
@@ -895,13 +914,13 @@ async function loadDataFromSpreadsheet() {
     console.error("Gagal memuat data:", error);
 
     keuangan =
-      JSON.parse(localStorage.getItem('andini_keuangan')) || [];
+      JSON.parse(localStorage.getItem(`${currentDb}_keuangan`)) || [];
 
     mcu =
-      JSON.parse(localStorage.getItem('andini_mcu')) || [];
+      JSON.parse(localStorage.getItem(`${currentDb}_mcu`)) || [];
 
     tagihan =
-      JSON.parse(localStorage.getItem('andini_tagihan')) || [];
+      JSON.parse(localStorage.getItem(`${currentDb}_tagihan`)) || [];
 
   } finally {
 
@@ -910,6 +929,31 @@ async function loadDataFromSpreadsheet() {
     render();
 
   }
+
+}
+
+
+/* ===============================
+   GANTI DATABASE (KLINIK / PT)
+================================ */
+
+function switchDatabase(dbKey) {
+
+  currentDb = dbKey;
+
+  localStorage.setItem('activeDb', dbKey);
+
+  document.getElementById('logoNama').innerText =
+    DB_LABELS[dbKey];
+
+  document.getElementById('dbSwitcher').value =
+    dbKey;
+
+  pageMcu = 1;
+  pageTagihan = 1;
+  pageKeuangan = 1;
+
+  loadDataFromSpreadsheet();
 
 }
 
@@ -2113,17 +2157,17 @@ function changePageKeuangan(page) {
 function saveAndSync() {
 
   localStorage.setItem(
-    'andini_keuangan',
+    `${currentDb}_keuangan`,
     JSON.stringify(keuangan)
   );
 
   localStorage.setItem(
-    'andini_mcu',
+    `${currentDb}_mcu`,
     JSON.stringify(mcu)
   );
 
   localStorage.setItem(
-    'andini_tagihan',
+    `${currentDb}_tagihan`,
     JSON.stringify(tagihan)
   );
 
@@ -2141,6 +2185,9 @@ function saveAndSync() {
     body:JSON.stringify({
 
       action:'saveAll',
+
+      db:
+        currentDb,
 
       keuangan:
         keuangan,
@@ -3392,6 +3439,9 @@ function formatTanggalIndo(tgl) {
 /* ===============================
    MULAI APLIKASI
 ================================ */
+
+document.getElementById('dbSwitcher').value = currentDb;
+document.getElementById('logoNama').innerText = DB_LABELS[currentDb];
 
 loadDataFromSpreadsheet();
 
